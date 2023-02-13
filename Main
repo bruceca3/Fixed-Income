@@ -1,0 +1,120 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Tue Oct 25 14:24:45 2022
+
+@author: camer
+"""
+
+# Measuring Credit Risk
+import numpy as np
+from typing import List, Dict
+import math
+import pandas_datareader as pdr
+import pandas as pd
+from datetime import date, timedelta
+import requests
+from bs4 import BeautifulSoup
+
+
+def get_risk_free():
+    """Returns semi-annual zero rate in the US"""
+    data = pd.read_csv('OneDrive/Desktop/random stuff/Live US Bond Data.csv') # csv file connected to investing.com
+    semi_annual_zero = data['Yield'][2]/2
+    return semi_annual_zero
+    
+def quoted_prices():
+    data = pd.read_csv('OneDrive/Desktop/random stuff/BondPrices.csv')
+    return data
+
+
+class Bond:
+    
+    byield: float
+    rf: dict
+    coupon: float
+    maturity: float
+    pmarket: float
+    freq: int
+    settlement: date
+    last_coupon: date
+
+    def __init__(self, byield, rf, coupon, maturity, pmarket, last_coupon):
+        
+        self.byield = byield
+        self.rf = rf
+        self.coupon = coupon
+        self.maturity = maturity
+        self.pmarket = pmarket
+        self.freq = 2
+        self.settlement = date.today()
+        self.last_coupon = last_coupon
+        
+    def rfrs(self):
+        """Helper function. Returns Present Value of cash flow at time T
+        discounted at the risk-free rate instead of yield"""
+        lst = []
+        i = 1.0 / self.freq
+        while i < self.maturity:
+            rfr = self.coupon * math.exp(-self.rf * i)
+            lst.append(rfr)
+            i += 1/self.freq
+        if i == self.maturity:
+            rfr = (self.coupon + 1)* math.exp(-self.rf * i)
+            lst.append(rfr)
+        return lst
+        
+    
+    def rf_value(self):
+        """Calculating the risk free value of the Bond object"""
+        clean = sum(self.rfrs())
+        diff = (self.settlement - self.last_coupon).days
+        accrued = (diff/180)*(self.coupon)
+        return accrued + clean
+        
+    
+    def NPV(self):
+        """Valuing the bond using the yield instead of the rfr)"""
+        lst = []
+        i = 1/self.freq
+        while i < self.maturity:
+            ytm = self.coupon * math.exp(-self.byield * i)
+            lst.append(ytm)
+            i += 1/self.freq
+        if i == self.maturity:
+            rfr = (self.coupon + 1)* math.exp(-self.byield * i)
+            lst.append(ytm)
+        return lst
+        
+    def ytm_value(self):
+        """Calculating the value discounted by YTM, the theoretical price"""
+        clean = sum(self.NPV())  
+        diff = (self.settlement - self.last_coupon).days
+        accrued = (diff/180)*(self.coupon)
+        return accrued + clean
+    
+    def exp_loss_theoretical(self):
+        """Calculating the expected loss, calculated by subtracting rf_value
+        from ytm_value. I
+        
+        In an efficient market, rf_value - ytm_value should return the expected
+        loss. It measures the difference in face value an investor would pay for a
+        risk-free bond of identical structure"""
+        return self.rf_value() - self.dirty_value()
+        
+    def exp_loss_market(self):
+        """Using pmarket - rf_value to calculate the expected loss by the market"""
+        return self.rf_value() - self.pmarket
+    
+    def arbitrage_amount(self):
+        """Returns pure arbitrage - the difference between ytm_value and
+        pmarket"""
+        return abs(self.ytm_value() - self.pmarket)
+
+if __name__ == '__main__':
+    pass
+    
+    
+
+        
+        
+            
